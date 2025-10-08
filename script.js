@@ -1,257 +1,298 @@
-// script.js - Tournament Edition 2.0
-import { speak as gSpeak } from './tts.js'; // if your bundler/host doesn't support import, use window.gameSpeak instead
+// script.js — Tournament rules implementation (polls /api/lastEvent)
+(function(){
+  const track = document.getElementById('track');
+  const roundNumEl = document.getElementById('roundNum');
+  const timerEl = document.getElementById('timer');
+  const playerCountEl = document.getElementById('playerCount');
+  const leaderboardEl = document.getElementById('leaderboard');
+  const confettiCanvas = document.getElementById('confetti');
 
-// fallback if tts.js not imported as module
-const speak = window.gameSpeak || function(t){ try{ const u=new SpeechSynthesisUtterance(t); u.lang='id-ID'; window.speechSynthesis.speak(u);}catch(e){} };
+  const bgMusic = document.getElementById('bgMusic');
+  const cheer = document.getElementById('cheer');
+  const engine = document.getElementById('engine');
 
-const trackEl = document.getElementById('track');
-const commentatorEl = document.getElementById('commentator');
-const roundLabel = document.getElementById('roundLabel');
-const timerEl = document.getElementById('timer');
-const playerCountEl = document.getElementById('playerCount');
-const leaderboardEl = document.getElementById('leaderboard');
+  const MAX_PLAYERS = 7;
+  const TAP_NEEDED = 10;
+  const ROUND_MS = 5 * 60 * 1000;
 
-const bgMusic = document.getElementById('bgMusic');
-const cheer = document.getElementById('cheer');
-const engine = document.getElementById('engine');
+  let players = []; // { username, taps, joinedAt, vip, progress, finished, ui }
+  let tapCounts = {}; // temporary taps before join
+  let roundActive = false;
+  let roundStart = 0;
+  let roundTimer = null;
+  let roundNumber = 0;
 
-let roundNumber = 0;
-let players = []; // { username, taps, joinedAt, vip (bool), progress, finished }
-const MAX_PLAYERS = 7;
-const TAP_NEEDED = 10;
-const ROUND_MS = 5 * 60 * 1000;
+  // confetti setup
+  confettiCanvas.width = confettiCanvas.clientWidth || window.innerWidth;
+  confettiCanvas.height = confettiCanvas.clientHeight || window.innerHeight;
+  const confCtx = confettiCanvas.getContext ? confettiCanvas.getContext('2d') : null;
+  let confettiParts = [];
 
-let roundActive = false;
-let roundStartAt = 0;
-let roundTimerId = null;
-let pollInterval = null;
+  // helper: create UI row inside track
+  function createRow(username, vip){
+    const row = document.createElement('div');
+    row.className = 'row' + (vip ? ' vip' : '');
+    // position rows vertically spaced along left side; compute top based on current players count (stack)
+    const index = players.length;
+    const top = 40 + index * 90; // spacing
+    row.style.top = top + 'px';
 
-// helper create UI row
-function createRow(username, vip=false){
-  const row = document.createElement('div');
-  row.className = 'row' + (vip ? ' vip' : '');
-  const name = document.createElement('div'); name.className='name'; name.innerText = username;
-  const bar = document.createElement('div'); bar.className='bar';
-  const prog = document.createElement('div'); prog.className='progress';
-  prog.style.width='0%';
-  bar.appendChild(prog);
-  row.appendChild(name); row.appendChild(bar);
-  trackEl.appendChild(row);
-  return { row, prog, name, bar };
-}
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = username.slice(0,2).toUpperCase();
 
-// find player
-function findPlayer(username){
-  return players.find(p => p.username.toLowerCase() === username.toLowerCase());
-}
+    const info = document.createElement('div');
+    info.className = 'info';
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.innerText = username;
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.innerText = vip ? 'VIP (Mawar)' : 'Player';
 
-// add player if taps enough
-function tryAddFromTap(username){
-  let p = findPlayer(username);
-  if(p) return false;
-  // count taps in temporary storage
-  let taps = window.__tapCounts__ || (window.__tapCounts__ = {});
-  taps[username] = (taps[username]||0) + 1;
-  // update UI hint (optional)
-  commentatorEl.innerText = `${username} tap ${taps[username]}/${TAP_NEEDED}`;
-  if(taps[username] >= TAP_NEEDED){
-    // join as normal
-    taps[username] = 0;
-    addPlayer(username, false);
-    return true;
+    info.appendChild(name);
+    info.appendChild(tag);
+
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const prog = document.createElement('div');
+    prog.className = 'progress';
+    bar.appendChild(prog);
+
+    row.appendChild(avatar);
+    row.appendChild(info);
+    row.appendChild(bar);
+
+    track.appendChild(row);
+    return { row, prog, name, tag };
   }
-  return false;
-}
 
-function addPlayer(username, vip=false){
-  if(findPlayer(username)) return;
-  if(players.length >= MAX_PLAYERS && !vip){
-    // cannot add non-vip if full
-    speak(`${username}, arena sudah penuh. Coba lagi nanti.`);
-    return;
+  function findPlayer(username){
+    return players.find(p => p.username.toLowerCase() === username.toLowerCase());
   }
-  if(players.length >= MAX_PLAYERS && vip){
-    // find oldest non-vip to replace
-    const nonVipIndex = players.findIndex(p => !p.vip);
-    if(nonVipIndex !== -1){
-      const removed = players.splice(nonVipIndex,1)[0];
-      // remove UI
-      if(removed.ui && removed.ui.row) removed.ui.row.remove();
-      speak(`${removed.username} digeser dari arena oleh VIP ${username}.`);
-    } else {
-      // all are VIP — cannot replace
-      speak(`Arena sudah penuh oleh VIP. ${username} masuk ke antrian.`);
-      // optionally queue — for simplicity we ignore queue
+
+  function updatePlayerCount(){
+    playerCountEl.innerText = players.length;
+  }
+
+  function speak(text){
+    try { window.gameSpeak && window.gameSpeak(text); } catch(e){ console.warn('speak err', e); }
+  }
+
+  // Add player with VIP logic & replacement
+  function addPlayer(username, isVip){
+    if(findPlayer(username)) return;
+    if(players.length >= MAX_PLAYERS && !isVip){
+      speak(`${username}, arena sudah penuh. Coba lagi nanti.`);
       return;
     }
-  }
-
-  const ui = createRow(username, vip);
-  const p = { username, taps:0, joinedAt:Date.now(), vip:!!vip, progress:0, finished:false, ui };
-  players.push(p);
-  updatePlayerCount();
-  speak(`${username} bergabung${vip ? ' sebagai VIP!' : '!'}`);
-  commentatorEl.innerText = `${username} masuk arena ${vip ? ' (VIP)' : ''}`;
-  cheer.play();
-
-  // if enough players and not active -> start countdown then round
-  if(!roundActive && players.length >= MAX_PLAYERS){
-    startCountdownAndRound();
-  }
-}
-
-// update player count UI
-function updatePlayerCount(){
-  playerCountEl.innerText = players.length;
-}
-
-// per-tick update
-function step(){
-  if(!roundActive) return;
-  // update progress randomly scaled by vip
-  players.forEach(p => {
-    if(p.finished) return;
-    const delta = (p.vip ? (2 + Math.random()*6) : (1 + Math.random()*3));
-    p.progress += delta;
-    const pct = Math.min(100, (p.progress / 1000) * 100); // normalize
-    p.ui.prog.style.width = pct + '%';
-    if(p.progress >= 1000){ p.finished = true; speak(`${p.username} mencapai finish!`); }
-  });
-  updateLeaderboard();
-}
-
-// update leaderboard UI
-function updateLeaderboard(){
-  const sorted = players.slice().sort((a,b)=>b.progress - a.progress).slice(0,3);
-  leaderboardEl.innerHTML = '';
-  for(let i=0;i<3;i++){
-    const li = document.createElement('li');
-    const item = sorted[i];
-    li.innerText = item ? `${item.username} (${Math.floor(item.progress)})` : '—';
-    leaderboardEl.appendChild(li);
-  }
-}
-
-// countdown then start round
-function startCountdownAndRound(){
-  roundNumber++;
-  roundLabel.innerText = `Ronde: ${roundNumber}`;
-  speak(`Arena penuh! Ronde ${roundNumber} akan dimulai dalam 5 detik. Bersiap!`);
-  commentatorEl.innerText = 'Ronde akan dimulai... 5';
-  let c=5;
-  const cd = setInterval(()=>{
-    c--;
-    commentatorEl.innerText = c>0 ? `Ronde akan dimulai... ${c}` : 'GO!';
-    if(c<=0){
-      clearInterval(cd);
-      startRound();
-    }
-  },1000);
-}
-
-function startRound(){
-  roundActive = true;
-  roundStartAt = Date.now();
-  speak('Balapan dimulai! Tap untuk mempercepat mobilmu!');
-  bgMusic.play().catch(()=>{ /* require user gesture sometimes */ });
-  // step every 300ms
-  roundTimerId = setInterval(step, 300);
-  // end after ROUND_MS
-  setTimeout(endRound, ROUND_MS);
-}
-
-// end round
-function endRound(){
-  if(!roundActive) return;
-  roundActive = false;
-  clearInterval(roundTimerId);
-  bgMusic.pause();
-  cheer.play();
-  // determine top 3
-  const sorted = players.slice().sort((a,b)=>b.progress - a.progress);
-  const top3 = sorted.slice(0,3);
-  if(top3.length){
-    const names = top3.map((p,i)=>`${i+1}. ${p.username}`).join(', ');
-    speak(`Ronde selesai! Pemenang: ${names}`);
-    commentatorEl.innerText = `Pemenang: ${names}`;
-  } else {
-    speak('Ronde selesai. Tidak ada pemenang.');
-    commentatorEl.innerText = 'Ronde selesai.';
-  }
-  // confetti trigger
-  triggerConfetti();
-  // reset players after short delay
-  setTimeout(()=>{ players.forEach(p=> p.ui.row.remove()); players = []; updatePlayerCount(); updateLeaderboard(); }, 8000);
-}
-
-// CONFETTI (simple)
-const confettiCanvas = document.getElementById('confetti');
-const cctx = confettiCanvas.getContext && confettiCanvas.getContext('2d');
-confettiCanvas.width = innerWidth; confettiCanvas.height = innerHeight;
-let confs = [];
-function triggerConfetti(){
-  for(let i=0;i<200;i++){
-    confs.push({ x: Math.random()*confettiCanvas.width, y: -Math.random()*confettiCanvas.height, r: 4+Math.random()*6, c: `hsl(${Math.random()*360}, 100%, 60%)`, vy:2+Math.random()*4 });
-  }
-  animateConfetti();
-}
-function animateConfetti(){
-  if(!cctx) return;
-  cctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
-  confs.forEach(f => { cctx.fillStyle = f.c; cctx.fillRect(f.x,f.y,f.r,f.r*0.6); f.y += f.vy; });
-  confs = confs.filter(f => f.y < confettiCanvas.height+50);
-  if(confs.length) requestAnimationFrame(animateConfetti);
-}
-
-// fetch events from server
-async function pollEvents(){
-  try {
-    const res = await fetch('/api/lastEvent');
-    if(!res.ok) return;
-    const ev = await res.json();
-    if(ev && ev.username){
-      const uname = ev.username;
-      const type = (ev.event || '').toLowerCase();
-      const giftName = ev.gift || '';
-      if(type === 'tap' || type === 'like' || type === 'interaction'){
-        // count taps -> join after TAP_NEEDED
-        tryAddFromTap(uname);
-      } else if(type === 'gift' || giftName){
-        const isMawar = /mawar|rose/i.test(giftName || '');
-        if(isMawar){
-          addPlayer(uname, true);
-        } else {
-          // treat as normal gift that gives boost if already in players
-          const p = findPlayer(uname);
-          if(p){
-            p.progress += 50;
-            speak(`${uname} mengirim gift! Dapat boost!`);
-          } else {
-            // optionally add to queue — for simplicity we don't auto-add non-mawar gifts
-          }
-        }
+    if(players.length >= MAX_PLAYERS && isVip){
+      // replace oldest non-vip
+      const idx = players.findIndex(p => !p.vip);
+      if(idx !== -1){
+        const removed = players.splice(idx,1)[0];
+        // remove UI
+        if(removed.ui && removed.ui.row) removed.ui.row.remove();
+        speak(`${removed.username} digeser dari arena oleh VIP ${username}.`);
+      } else {
+        speak(`Arena penuh oleh VIP. ${username} masuk ke antrian (tidak diproses).`);
+        return;
       }
     }
-  } catch(e){ console.warn('poll err', e); }
-}
 
-// debugging simulate buttons
-document.getElementById('btnSimTap').addEventListener('click', ()=> {
-  const name = 'Viewer' + Math.floor(Math.random()*999);
-  tryAddFromTap(name);
-});
-document.getElementById('btnSimGift').addEventListener('click', ()=> {
-  const name = 'Gifter' + Math.floor(Math.random()*999);
-  addPlayer(name, true);
-});
-document.getElementById('btnReset').addEventListener('click', ()=> {
-  players.forEach(p=> p.ui.row.remove());
-  players = [];
+    const ui = createRow(username, isVip);
+    const p = { username, taps:0, joinedAt:Date.now(), vip:!!isVip, progress:0, finished:false, ui };
+    players.push(p);
+    updatePlayerCount();
+    speak(`${username} bergabung${isVip ? ' sebagai VIP!' : '!'}`);
+    cheer.play().catch(()=>{});
+    // if enough players, start countdown->round
+    if(!roundActive && players.length >= MAX_PLAYERS){
+      startCountdown();
+    }
+  }
+
+  // handle tap counting: join after TAP_NEEDED taps
+  function handleTap(username){
+    if(findPlayer(username)){
+      // if already in players, give progress boost
+      const p = findPlayer(username);
+      if(roundActive && !p.finished){
+        p.progress += p.vip ? 12 : 6;
+        p.ui.prog.style.width = Math.min(100, (p.progress/1000)*100) + '%';
+        engine.play().catch(()=>{});
+      }
+      return;
+    }
+    tapCounts[username] = (tapCounts[username]||0) + 1;
+    const count = tapCounts[username];
+    speak(`${username} tap ${count}/${TAP_NEEDED}`);
+    if(count >= TAP_NEEDED){
+      tapCounts[username] = 0;
+      addPlayer(username, false);
+    }
+  }
+
+  // start countdown and then start round
+  function startCountdown(){
+    roundNumber++;
+    roundNumEl.innerText = roundNumber;
+    let c = 5;
+    speak(`Arena penuh. Ronde ${roundNumber} dimulai dalam 5 detik. Siap-siap!`);
+    const interval = setInterval(()=>{
+      if(c>0){
+        document.getElementById('timer').innerText = `Mulai dalam ${c}s`;
+        c--;
+      } else {
+        clearInterval(interval);
+        startRound();
+      }
+    },1000);
+  }
+
+  function startRound(){
+    roundActive = true;
+    roundStart = Date.now();
+    speak('Balapan dimulai! Gas pol!');
+    try { bgMusic.play().catch(()=>{}); } catch(e){}
+    // tick
+    roundTimer = setInterval(()=> {
+      // progress step
+      players.forEach(p=>{
+        if(p.finished) return;
+        const delta = p.vip ? (4 + Math.random()*8) : (1 + Math.random()*4);
+        p.progress += delta;
+        const pct = Math.min(100, (p.progress/1000)*100);
+        p.ui.prog.style.width = pct + '%';
+        if(p.progress >= 1000 && !p.finished){
+          p.finished = true;
+          speak(`${p.username} melewati garis finish!`);
+        }
+      });
+      updateLeaderboard();
+      // timer display
+      const elapsed = Date.now() - roundStart;
+      const rem = Math.max(0, Math.floor((ROUND_MS - elapsed)/1000));
+      const m = Math.floor(rem/60), s = rem%60;
+      timerEl.innerText = `${m}:${String(s).padStart(2,'0')}`;
+      if(elapsed >= ROUND_MS){
+        endRound();
+      }
+    }, 400);
+  }
+
+  function updateLeaderboard(){
+    const top = players.slice().sort((a,b)=>b.progress - a.progress).slice(0,3);
+    leaderboardEl.innerHTML = '';
+    for(let i=0;i<3;i++){
+      const li = document.createElement('li');
+      const item = top[i];
+      li.innerText = item ? `${i+1}. ${item.username} (${Math.floor(item.progress)})` : '—';
+      leaderboardEl.appendChild(li);
+    }
+  }
+
+  function endRound(){
+    if(!roundActive) return;
+    roundActive = false;
+    clearInterval(roundTimer);
+    bgMusic.pause();
+    cheer.play().catch(()=>{});
+    const ranking = players.slice().sort((a,b)=>b.progress - a.progress);
+    if(ranking.length){
+      const top3 = ranking.slice(0,3).map((p,i)=>`${i+1}. ${p.username}`).join(', ');
+      speak(`Ronde selesai! Top tiga: ${top3}`);
+      // show confetti
+      triggerConfetti();
+      // cleanup UI after short delay
+      setTimeout(()=> {
+        players.forEach(p => { p.ui && p.ui.row && p.ui.row.remove(); });
+        players = [];
+        updatePlayerCount();
+        updateLeaderboard();
+        timerEl.innerText = '—';
+      },8000);
+    } else {
+      speak('Ronde selesai. Tidak ada pemenang.');
+    }
+  }
+
+  // confetti simple animation
+  function triggerConfetti(){
+    if(!confCtx) return;
+    confettiParts = [];
+    for(let i=0;i<200;i++){
+      confettiParts.push({ x: Math.random()*confettiCanvas.width, y: -Math.random()*confettiCanvas.height, r: 4+Math.random()*6, c: `hsl(${Math.random()*360},100%,60%)`, vy:2+Math.random()*4 });
+    }
+    (function loop(){
+      confCtx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+      confettiParts.forEach(p=>{
+        confCtx.fillStyle = p.c;
+        confCtx.fillRect(p.x, p.y, p.r, p.r*0.6);
+        p.y += p.vy;
+      });
+      confettiParts = confettiParts.filter(p=>p.y < confettiCanvas.height+50);
+      if(confettiParts.length) requestAnimationFrame(loop);
+    })();
+  }
+
+  // Poll server for events
+  async function poll(){
+    try {
+      const res = await fetch('/api/lastEvent');
+      if(!res.ok) return;
+      const ev = await res.json();
+      if(ev && ev.username){
+        const u = ev.username;
+        const type = (ev.event || '').toLowerCase();
+        const giftName = ev.gift || '';
+        if(type === 'tap' || type === 'like' || type === 'interaction') {
+          handleTap(u);
+        } else if(type === 'gift' || giftName){
+          const isMawar = /mawar|rose/i.test(String(giftName||''));
+          if(isMawar) addPlayer(u, true);
+          else {
+            // non-mawar gift: if player exists, give boost
+            const p = findPlayer(u);
+            if(p){
+              p.progress += 80;
+              speak(`${u} memberikan gift, mendapat boost!`);
+            }
+          }
+        } else {
+          // fallback: treat as tap
+          handleTap(u);
+        }
+      }
+    } catch(e){ console.warn('poll err', e); }
+  }
+
+  // debug buttons
+  document.getElementById('simTap').addEventListener('click', ()=> {
+    const name = 'V' + Math.floor(Math.random()*9000);
+    handleTap(name);
+  });
+  document.getElementById('simGift').addEventListener('click', ()=> {
+    const name = 'G' + Math.floor(Math.random()*9000);
+    addPlayer(name, true);
+  });
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    players.forEach(p=> p.ui.row.remove());
+    players = []; tapCounts = {}; updatePlayerCount(); updateLeaderboard();
+    speak('Game direset.');
+  });
+
+  // initial UI
   updatePlayerCount();
   updateLeaderboard();
-  speak('Game direset oleh host.');
-});
 
-// start polling
-pollInterval = setInterval(pollEvents, 2500);
-updateLeaderboard();
+  // start polling every 1.8s
+  setInterval(poll, 1800);
+
+  // user gesture to enable audio on mobile
+  document.body.addEventListener('click', function once(){ 
+    try { bgMusic.play().catch(()=>{}); } catch(e){}
+    document.body.removeEventListener('click', once);
+  });
+
+})();
