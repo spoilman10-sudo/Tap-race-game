@@ -1,37 +1,47 @@
 // api/webhook.js
-let eventsQueue = [];
+// Accept GET query or POST JSON and queue event into global queue for polling by client
+let q = global.__EVENTS_QUEUE__ || (global.__EVENTS_QUEUE__ = []);
 
-/*
-  Accepts:
-  - GET with query: ?event=tap&user=Name&gift=...
-  - POST with JSON body: { event: 'tap'|'gift', username: 'Name', gift: 'Mawar', amount: 1 }
-*/
 export default async function handler(req, res) {
   try {
     let payload = null;
     if (req.method === 'GET') {
-      const { event, user, gift, amount } = req.query;
-      if (event || user) payload = { event: event || 'unknown', username: user || req.query.username || null, gift: gift || null, amount: amount || 1, ts: Date.now() };
+      const { event, user, gift, username } = req.query;
+      if (user || username) {
+        payload = {
+          event: event || 'tap',
+          username: user || username,
+          gift: gift || null,
+          ts: Date.now()
+        };
+      }
     } else if (req.method === 'POST') {
       const body = await req.json().catch(()=>null);
-      if (body) payload = { event: body.event || body.type || 'unknown', username: body.username || body.user || body.userName || null, gift: body.gift || body.giftName || null, amount: body.amount || body.count || 1, ts: Date.now(), raw: body };
+      if (body) {
+        payload = {
+          event: body.event || body.type || 'unknown',
+          username: body.username || body.user || body.userName || body.from || null,
+          gift: body.gift || body.giftName || null,
+          raw: body,
+          ts: Date.now()
+        };
+      }
     }
+
     if (payload && payload.username) {
-      // normalize gift name for matching
+      // normalize
+      payload.username = String(payload.username);
       if (payload.gift) payload.gift = String(payload.gift);
-      eventsQueue.push(payload);
-      console.log('Webhook queued:', payload);
+      q.push(payload);
+      console.log('Queued event', payload);
     } else {
-      console.log('Webhook received (ignored):', req.method, req.url);
+      console.log('Ignored webhook (no username):', req.method, req.url);
     }
-    res.setHeader('content-type','application/json');
-    return res.status(200).send(JSON.stringify({ ok: true }));
-  } catch (e) {
-    console.error(e);
-    res.status(500).send(JSON.stringify({ ok:false, error: String(e) }));
+
+    res.setHeader('Content-Type','application/json');
+    return res.status(200).send(JSON.stringify({ ok:true }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok:false, error: String(err) });
   }
 }
-
-// helper endpoint: /api/lastEvent
-// Create a second file `api/lastEvent.js` which reads from the same module variable.
-// (See instructions below — Vercel serverless reuses module scope in many cases.)
