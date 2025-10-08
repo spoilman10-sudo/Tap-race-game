@@ -1,0 +1,14 @@
+body {
+  text-align: center;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #202020, #3a3a3a);
+  color: #fff;
+}
+
+#gameCanvas {
+  background: #111;
+  border: 2px solid #fff;
+  margin-top: 20px;
+  width: 90%;
+  height: 200px;
+}
