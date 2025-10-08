@@ -1,14 +1,20 @@
-body {
-  text-align: center;
-  font-family: Arial, sans-serif;
-  background: linear-gradient(135deg, #202020, #3a3a3a);
-  color: #fff;
+:root{
+  --bg:#07101a; --card:#0f1720; --accent:#ff4b4b; --muted:#9fb0bf; --vip:#ffd700;
 }
-
-#gameCanvas {
-  background: #111;
-  border: 2px solid #fff;
-  margin-top: 20px;
-  width: 90%;
-  height: 200px;
-}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:linear-gradient(180deg,#061018,#07101a);color:#fff}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:linear-gradient(90deg,rgba(255,255,255,0.02),transparent)}
+.title{font-weight:700}
+main{display:grid;grid-template-columns:1fr 320px;gap:14px;padding:16px}
+.card{background:var(--card);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);margin-bottom:12px}
+#track{min-height:420px;border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:8px}
+.row{position:relative;height:56px;border-radius:8px;background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));display:flex;align-items:center;padding:8px;overflow:hidden}
+.name{width:140px;padding-left:8px;font-weight:600}
+.bar{height:28px;border-radius:8px;background:#333;flex:1;margin-left:8px;position:relative;overflow:hidden}
+.progress{position:absolute;left:0;top:0;bottom:0;width:0%;transition:width 0.2s linear}
+.vip .name::after{content:' ⭐ VIP';color:var(--vip);font-weight:700;margin-left:6px}
+.hint{margin-top:8px;font-size:13px;color:var(--muted)}
+#commentator{font-size:15px;text-align:center}
+button{background:var(--accent);border:0;padding:8px;border-radius:8px;color:#fff;cursor:pointer}
+#confetti{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:999}
+@media (max-width:900px){main{grid-template-columns:1fr;}}
