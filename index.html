@@ -3,66 +3,61 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TikTok Race — Tournament Edition 2.0</title>
+  <title>🏁 TikTok Race — Tournament Asphalt Edition</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="topbar">
-    <div class="title">🏁 TikTok Race — Tournament Edition</div>
-    <div class="round" id="roundLabel">Ronde: —</div>
+  <div class="header">
+    <div class="logo">🏁 TIKTOK RACE TOURNAMENT</div>
+    <div class="hint">Tekan layar 1x untuk aktifkan suara • Tap 10x untuk join • Gift "Mawar" = VIP</div>
   </div>
 
-  <main>
-    <section id="left">
-      <div id="rules" class="card">
-        <h3>Rules (Baca ya!)</h3>
-        <ol>
-          <li>Tap 10× untuk <strong>join</strong> (tap dihitung per username)</li>
-          <li>Gift <strong>Mawar</strong> → langsung <em>VIP</em> (warna emas)</li>
-          <li>Max <strong>7 pemain</strong>. Jika penuh & ada VIP masuk → VIP menggantikan pemain non-VIP tertua</li>
-          <li>Ronde berjalan <strong>5 menit</strong> setelah 7 pemain</li>
-          <li>Pemenang: pemain paling jauh. Top-3 diumumkan</li>
-        </ol>
-        <div class="hint">Tekan layar 1x untuk mengaktifkan suara & musik (wajib di mobile)</div>
+  <main class="layout">
+    <section class="arena-panel">
+      <div id="track" class="track"></div>
+      <div id="startFinish" class="sf">
+        <div class="start">START</div>
+        <div class="finish">FINISH</div>
       </div>
-
-      <div id="track" class="card">
-        <!-- dynamic player rows -->
-      </div>
-
-      <div id="commentator" class="card">Komentator: Siap.</div>
+      <div id="confetti" class="confetti"></div>
     </section>
 
-    <aside id="right">
+    <aside class="info-panel">
       <div class="card">
-        <h4>Info Ronde</h4>
+        <h3>Info Ronde</h3>
         <div>Ronde: <span id="roundNum">0</span></div>
         <div>Timer: <span id="timer">—</span></div>
         <div>Players: <span id="playerCount">0</span>/7</div>
       </div>
 
       <div class="card">
-        <h4>Leaderboard (Ronde)</h4>
+        <h3>Leaderboard (Ronde)</h3>
         <ol id="leaderboard">
-          <li>—</li>
-          <li>—</li>
-          <li>—</li>
+          <li>—</li><li>—</li><li>—</li>
         </ol>
       </div>
 
       <div class="card">
-        <h4>Controls (Debug)</h4>
-        <button id="btnSimTap">Simulate Tap</button>
-        <button id="btnSimGift">Simulate Gift (Mawar)</button>
-        <button id="btnReset">Reset Game</button>
+        <h3>Rules</h3>
+        <ol>
+          <li>Tap 10× untuk bergabung</li>
+          <li>Gift <strong>Mawar</strong> → langsung VIP (emas)</li>
+          <li>Max 7 pemain. VIP menggantikan non-VIP tertua jika penuh</li>
+          <li>Ronde berjalan 5 menit</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h3>Controls (Debug)</h3>
+        <button id="simTap">Simulate Tap (test)</button>
+        <button id="simGift">Simulate Gift (Mawar)</button>
+        <button id="resetBtn">Reset</button>
       </div>
     </aside>
   </main>
 
-  <canvas id="confetti"></canvas>
-
   <!-- audio -->
-  <audio id="bgMusic" loop preload="auto" src="https://cdn.pixabay.com/audio/2022/10/18/audio_eb79e25d1b.mp3"></audio>
+  <audio id="bgMusic" preload="auto" loop src="https://cdn.pixabay.com/download/audio/2023/03/15/audio_3c0b6d1b6f.mp3"></audio>
   <audio id="cheer" preload="auto" src="https://cdn.pixabay.com/download/audio/2023/03/03/audio_54c6b7ed0a.mp3?filename=cheering-crowd-14728.mp3"></audio>
   <audio id="engine" preload="auto" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_fbf9a7fa5b.mp3?filename=sport-car-engine-110440.mp3"></audio>
 
