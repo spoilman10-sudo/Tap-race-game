@@ -1,18 +1,72 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IndoFinity TapRace</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TikTok Race — Tournament Edition 2.0</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>🚗 IndoFinity TapRace</h1>
-  <p id="status">Menunggu pemain bergabung...</p>
-  <canvas id="gameCanvas"></canvas>
+  <div class="topbar">
+    <div class="title">🏁 TikTok Race — Tournament Edition</div>
+    <div class="round" id="roundLabel">Ronde: —</div>
+  </div>
 
-  <audio id="commentator" autoplay></audio>
+  <main>
+    <section id="left">
+      <div id="rules" class="card">
+        <h3>Rules (Baca ya!)</h3>
+        <ol>
+          <li>Tap 10× untuk <strong>join</strong> (tap dihitung per username)</li>
+          <li>Gift <strong>Mawar</strong> → langsung <em>VIP</em> (warna emas)</li>
+          <li>Max <strong>7 pemain</strong>. Jika penuh & ada VIP masuk → VIP menggantikan pemain non-VIP tertua</li>
+          <li>Ronde berjalan <strong>5 menit</strong> setelah 7 pemain</li>
+          <li>Pemenang: pemain paling jauh. Top-3 diumumkan</li>
+        </ol>
+        <div class="hint">Tekan layar 1x untuk mengaktifkan suara & musik (wajib di mobile)</div>
+      </div>
 
+      <div id="track" class="card">
+        <!-- dynamic player rows -->
+      </div>
+
+      <div id="commentator" class="card">Komentator: Siap.</div>
+    </section>
+
+    <aside id="right">
+      <div class="card">
+        <h4>Info Ronde</h4>
+        <div>Ronde: <span id="roundNum">0</span></div>
+        <div>Timer: <span id="timer">—</span></div>
+        <div>Players: <span id="playerCount">0</span>/7</div>
+      </div>
+
+      <div class="card">
+        <h4>Leaderboard (Ronde)</h4>
+        <ol id="leaderboard">
+          <li>—</li>
+          <li>—</li>
+          <li>—</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h4>Controls (Debug)</h4>
+        <button id="btnSimTap">Simulate Tap</button>
+        <button id="btnSimGift">Simulate Gift (Mawar)</button>
+        <button id="btnReset">Reset Game</button>
+      </div>
+    </aside>
+  </main>
+
+  <canvas id="confetti"></canvas>
+
+  <!-- audio -->
+  <audio id="bgMusic" loop preload="auto" src="https://cdn.pixabay.com/audio/2022/10/18/audio_eb79e25d1b.mp3"></audio>
+  <audio id="cheer" preload="auto" src="https://cdn.pixabay.com/download/audio/2023/03/03/audio_54c6b7ed0a.mp3?filename=cheering-crowd-14728.mp3"></audio>
+  <audio id="engine" preload="auto" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_fbf9a7fa5b.mp3?filename=sport-car-engine-110440.mp3"></audio>
+
+  <script src="tts.js"></script>
   <script src="script.js"></script>
 </body>
-</html>
+  </html>
